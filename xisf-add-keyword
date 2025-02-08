@@ -25,7 +25,6 @@ for filename in args.files:
             'comment': args.comment,
         }
     ]
-    print(json.dumps(ims_meta[0], indent=4, default=str))
 
     XISF.write(filename, file.read_image(0), None, ims_meta[0], file.get_file_metadata(), codec=args.compression_type, shuffle=args.shuffle, level=args.compression_level)
 
