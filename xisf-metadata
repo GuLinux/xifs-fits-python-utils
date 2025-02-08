@@ -5,15 +5,26 @@ import json
 import argparse
 
 parser = argparse.ArgumentParser(description='xisf headers util')
-parser.add_argument('file')
-parser.add_argument('-f', '--format', choices=['json', 'yaml'], default='json')
+parser.add_argument('files', nargs='+')
+parser.add_argument('-y', '--yaml', action='store_true')
+parser.add_argument('-k','--fits-keyword', action='append')
 args = parser.parse_args()
 
-file = XISF(args.file)
-ims_meta = file.get_images_metadata()
+results = dict()
+for filename in args.files:
+    file = XISF(filename)
+    ims_meta = file.get_images_metadata()
+    if args.fits_keyword:
+        results[filename] = dict()
+        for keyword in args.fits_keyword:
+            if keyword in ims_meta[0]['FITSKeywords']:
+                results[filename][keyword] = ims_meta[0]['FITSKeywords'][keyword][0]['value']
+    else:
+        results[filename] = ims_meta
 
-if args.format == 'yaml':
-    print(dump(ims_meta, Dumper=Dumper))
+
+if args.yaml:
+    print(dump(results, Dumper=Dumper))
 else:
-    print(json.dumps(ims_meta, indent=4, default=str))
+    print(json.dumps(results, indent=4, default=str))
 

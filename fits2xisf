@@ -26,13 +26,9 @@ for hdr in image_header:
     fitskwds[hdr] = [{ 'value': value, 'comment': image_header.comments[hdr]}]
 
 fitskwds = { 'FITSKeywords': fitskwds }
-## print(json.dumps(fitskwds, indent=4, default=str))
 
 image_data = fits_file[0].data
 if len(image_data.shape) < 3:
     image_data.shape = (image_data.shape[0], image_data.shape[1], 1)
 
 XISF.write(args.xisf_file, fits_file[0].data, None, fitskwds, None, codec=args.compression_type, shuffle=args.shuffle, level=args.compression_level)
-
-
-# def write(fname, im_data, creator_app=None, image_metadata={}, xisf_metadata={}, codec=None, shuffle=False, level=None)
