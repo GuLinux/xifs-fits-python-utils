@@ -3,18 +3,31 @@ from astropy.io import fits
 from xisf import XISF
 import argparse
 import json
+import os
+import sys
 
 parser = argparse.ArgumentParser(description='Convert FITS files to XISF')
 parser.add_argument('fits_file')
-parser.add_argument('xisf_file')
 
+
+parser.add_argument('-o', '--output', default=None)
 parser.add_argument('-c', '--compression-type', choices=['zlib', 'lz4', 'lz4hc','zstd'], default='zstd')
 parser.add_argument('-l', '--compression-level', type=int, default='2')
 parser.add_argument('-s', '--shuffle', action='store_true')
+parser.add_argument('--rm', action='store_true')
+parser.add_argument('-v', '--verbose', action='store_true')
 args = parser.parse_args()
 
-fits_file = fits.open(args.fits_file)
 
+xisf_file = args.output
+if not xisf_file:
+    fits_file_basename, _ = os.path.splitext(args.fits_file)
+    xisf_file = f'{fits_file_basename}.xisf'
+
+if args.verbose:
+    sys.stderr.write(f'{args.fits_file} -> {xisf_file}\n')
+
+fits_file = fits.open(args.fits_file)
 fitskwds = dict()
 image_header = fits_file[0].header
 for hdr in image_header:
@@ -31,4 +44,12 @@ image_data = fits_file[0].data
 if len(image_data.shape) < 3:
     image_data.shape = (image_data.shape[0], image_data.shape[1], 1)
 
-XISF.write(args.xisf_file, fits_file[0].data, None, fitskwds, None, codec=args.compression_type, shuffle=args.shuffle, level=args.compression_level)
+XISF.write(xisf_file, fits_file[0].data, None, fitskwds, None, codec=args.compression_type, shuffle=args.shuffle, level=args.compression_level)
+if args.verbose:
+    sys.stderr.write(f'* {xisf_file} written\n')
+
+if args.rm:
+    if args.verbose:
+        sys.stderr.write(f'* Removing {args.fits_file}\n')
+    os.unlink(args.fits_file)
+
