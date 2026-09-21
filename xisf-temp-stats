@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+from xisf import XISF
+import argparse
+from statistics import median, mean
+import json
+from yaml import dump, Dumper
+
+parser = argparse.ArgumentParser(description='xisf temperature statistics')
+parser.add_argument('files', nargs='+')
+parser.add_argument('-k','--temp-keyword', default='CCD-TEMP', help='Keyword to use for temperature (default: CCD-TEMP)')
+parser.add_argument('-y', '--yaml', action='store_true')
+args = parser.parse_args()
+
+min_temp = None
+max_temp = None 
+temperatures = []
+
+for filename in args.files:
+    file = XISF(filename)
+    ims_meta = file.get_images_metadata()
+    img_temperature = float(ims_meta[0]['FITSKeywords'][args.temp_keyword][0]['value'])
+    temperatures.append(img_temperature)
+    if min_temp is None or min_temp['temperature'] > img_temperature:
+        min_temp = { 'filename': filename, 'temperature': img_temperature }
+    if max_temp is None or max_temp['temperature'] < img_temperature:
+        max_temp = { 'filename': filename, 'temperature': img_temperature }
+out = {
+        'minimum': min_temp,
+        'maximum': max_temp,
+        'mean': mean(temperatures),
+        'median': median(temperatures),
+}
+
+if args.yaml:
+    print(dump(out, Dumper=Dumper, sort_keys=False))
+else:
+    print(json.dumps(out, indent=4, default=str))
+
+
+                       
