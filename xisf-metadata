@@ -8,23 +8,43 @@ parser = argparse.ArgumentParser(description='xisf headers util')
 parser.add_argument('files', nargs='+')
 parser.add_argument('-y', '--yaml', action='store_true')
 parser.add_argument('-k','--fits-keyword', action='append')
+parser.add_argument('--no-filename', '--no-file', action='store_true', dest='no_filename',
+                     help='omit the filename as the root object of the output')
+parser.add_argument('-v', '--only-value', action='store_true',
+                     help='print only the raw value(s), without the keyword name (requires -k)')
 args = parser.parse_args()
 
-results = dict()
+if args.only_value and not args.fits_keyword:
+    parser.error('-v/--only-value requires -k/--fits-keyword')
+
+results = [] if args.no_filename else dict()
 for filename in args.files:
     file = XISF(filename)
     ims_meta = file.get_images_metadata()
     if args.fits_keyword:
-        results[filename] = dict()
+        file_result = dict()
         for keyword in args.fits_keyword:
             if keyword in ims_meta[0]['FITSKeywords']:
-                results[filename][keyword] = ims_meta[0]['FITSKeywords'][keyword][0]['value']
+                file_result[keyword] = ims_meta[0]['FITSKeywords'][keyword][0]['value']
+        if args.only_value:
+            values = list(file_result.values())
+            file_result = values[0] if len(values) == 1 else values
     else:
-        results[filename] = ims_meta
+        file_result = ims_meta
 
+    if args.no_filename:
+        results.append(file_result)
+    else:
+        results[filename] = file_result
 
-if args.yaml:
-    print(dump(results, Dumper=Dumper))
+# with a single file and --no-filename, unwrap the list to its lone element
+if args.no_filename and len(results) == 1:
+    results = results[0]
+
+if isinstance(results, str):
+    print(results)
+elif args.yaml:
+    print(dump(results, Dumper=Dumper).strip())
 else:
-    print(json.dumps(results, indent=4, default=str))
+    print(json.dumps(results, indent=4, default=str).strip())
 
