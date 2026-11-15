@@ -14,12 +14,19 @@ parser.add_argument('files', nargs='+')
 parser.add_argument('-c', '--compression-type', choices=['zlib', 'lz4', 'lz4hc','zstd'], default='zstd')
 parser.add_argument('-l', '--compression-level', type=int, default='2')
 parser.add_argument('-s', '--shuffle', action='store_true')
+parser.add_argument('-q', '--quiet', action='store_true')
 args = parser.parse_args()
 
 for filename in args.files:
+
+
     file = XISF(filename)
     ims_meta = file.get_images_metadata()
-    ims_meta[0]['FITSKeywords'][args.keyword] = [
+    fits_keywords = ims_meta[0].get('FITSKeywords', {})
+    if not args.quiet:
+        current_keyword = fits_keywords.get(args.keyword, [dict()])
+        print(f'[*] {filename}: [{args.keyword}] {current_keyword[0].get("value", "n/a")} -> {args.value}')
+    fits_keywords[args.keyword] = [
         {
             'value': args.value,
             'comment': args.comment,
