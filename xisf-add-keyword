@@ -1,7 +1,9 @@
 #!/usr/bin/env python3 
 from xisf import XISF
 import argparse
+import glob
 import json
+import os
 
 parser = argparse.ArgumentParser(description='Add FITS keywords to XISF files')
 
@@ -10,12 +12,58 @@ parser.add_argument('value')
 parser.add_argument('--comment', default='')
 
 parser.add_argument('files', nargs='+')
+parser.add_argument(
+    '-r',
+    '--recursive',
+    action='store_true',
+    help='Treat file inputs as glob patterns and search subdirectories',
+)
+parser.add_argument(
+    '-e',
+    '--exclude',
+    action='append',
+    metavar='PATTERN',
+    help='Exclude matching files when searching recursively (may be repeated)',
+)
 
 parser.add_argument('-c', '--compression-type', choices=['zlib', 'lz4', 'lz4hc','zstd'], default='zstd')
 parser.add_argument('-l', '--compression-level', type=int, default='2')
 parser.add_argument('-s', '--shuffle', action='store_true')
 parser.add_argument('-q', '--quiet', action='store_true')
 args = parser.parse_args()
+
+
+def expand_recursive_patterns(patterns, require_matches=True):
+    files = []
+    for pattern in patterns:
+        directory, filename = os.path.split(pattern)
+        recursive_pattern = os.path.join(directory, '**', filename)
+        matches = sorted(
+            path
+            for path in glob.glob(recursive_pattern, recursive=True)
+            if os.path.isfile(path)
+        )
+        if require_matches and not matches:
+            parser.error(f'{pattern}: recursive glob matched no files')
+        files.extend(matches)
+    return files
+
+
+if args.exclude and not args.recursive:
+    parser.error('--exclude requires --recursive')
+if args.recursive:
+    args.files = expand_recursive_patterns(args.files)
+    excluded = {
+        os.path.abspath(filename)
+        for filename in expand_recursive_patterns(args.exclude or [], False)
+    }
+    args.files = [
+        filename
+        for filename in args.files
+        if os.path.abspath(filename) not in excluded
+    ]
+    if not args.files:
+        parser.error('No files remain after applying exclusions')
 
 for filename in args.files:
 
