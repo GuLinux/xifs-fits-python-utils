@@ -1,0 +1,107 @@
+#!/usr/bin/python3
+import argparse
+import json
+import math
+from statistics import mean, median
+
+from xisf import XISF
+from yaml import dump, Dumper
+
+parser = argparse.ArgumentParser(description='XISF keyword statistics')
+parser.add_argument('files', nargs='+')
+keyword_group = parser.add_mutually_exclusive_group(required=True)
+keyword_group.add_argument(
+    '-k', '--keyword', help='FITS keyword whose numeric values to analyze'
+)
+keyword_group.add_argument(
+    '-t',
+    '--temperature',
+    action='store_const',
+    const='CCD-TEMP',
+    dest='keyword',
+    help='Analyze the CCD-TEMP keyword',
+)
+parser.add_argument(
+    '-b',
+    '--bins',
+    type=int,
+    default=10,
+    help='Number of histogram bins (default: 10)',
+)
+parser.add_argument(
+    '--show-empty-bins',
+    action='store_true',
+    help='Include histogram bins with no files',
+)
+parser.add_argument('-y', '--yaml', action='store_true')
+args = parser.parse_args()
+
+if args.bins < 1:
+    parser.error('--bins must be at least 1')
+
+minimum = None
+maximum = None
+values = []
+
+for filename in args.files:
+    file = XISF(filename)
+    ims_meta = file.get_images_metadata()
+    try:
+        value = float(ims_meta[0]['FITSKeywords'][args.keyword][0]['value'])
+    except (IndexError, KeyError, TypeError, ValueError) as error:
+        parser.error(
+            f'{filename}: could not read a numeric value for keyword '
+            f'{args.keyword}: {error}'
+        )
+    if not math.isfinite(value):
+        parser.error(
+            f'{filename}: keyword {args.keyword} must have a finite numeric value'
+        )
+    values.append(value)
+    if minimum is None or minimum['value'] > value:
+        minimum = {'filename': filename, 'value': value}
+    if maximum is None or maximum['value'] < value:
+        maximum = {'filename': filename, 'value': value}
+
+
+def build_histogram(data, bin_count, show_empty_bins):
+    low = min(data)
+    high = max(data)
+    if low == high:
+        return [{'minimum': low, 'maximum': high, 'count': len(data)}]
+
+    width = (high - low) / bin_count
+    counts = [0] * bin_count
+    for value in data:
+        index = min(int((value - low) / width), bin_count - 1)
+        counts[index] += 1
+
+    histogram = [
+        {
+            'minimum': low + index * width,
+            'maximum': low + (index + 1) * width,
+            'count': count,
+        }
+        for index, count in enumerate(counts)
+    ]
+    if show_empty_bins:
+        return histogram
+    return [bin for bin in histogram if bin['count']]
+
+
+out = {
+        'keyword': args.keyword,
+        'minimum': minimum,
+        'maximum': maximum,
+        'mean': mean(values),
+        'median': median(values),
+        'histogram': build_histogram(values, args.bins, args.show_empty_bins),
+}
+
+if args.yaml:
+    print(dump(out, Dumper=Dumper, sort_keys=False))
+else:
+    print(json.dumps(out, indent=4, default=str))
+
+
+                       
