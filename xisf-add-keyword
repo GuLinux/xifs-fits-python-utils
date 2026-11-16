@@ -30,6 +30,9 @@ parser.add_argument('-c', '--compression-type', choices=['zlib', 'lz4', 'lz4hc',
 parser.add_argument('-l', '--compression-level', type=int, default='2')
 parser.add_argument('-s', '--shuffle', action='store_true')
 parser.add_argument('-q', '--quiet', action='store_true')
+parser.add_argument('--root-element', default='FITSKeywords', choices=['FITSKeywords', 'XISFProperties'])
+parser.add_argument('--id', help='Specify the ID of the keyword (valid for XISFProperties only)')
+parser.add_argument('--type', help='Specify the type of the keyword (valid for XISFProperties only)')
 args = parser.parse_args()
 
 
@@ -70,16 +73,26 @@ for filename in args.files:
 
     file = XISF(filename)
     ims_meta = file.get_images_metadata()
-    fits_keywords = ims_meta[0].get('FITSKeywords', {})
+    keywords = ims_meta[0].get(args.root_element, {})
     if not args.quiet:
-        current_keyword = fits_keywords.get(args.keyword, [dict()])
-        print(f'[*] {filename}: [{args.keyword}] {current_keyword[0].get("value", "n/a")} -> {args.value}')
-    fits_keywords[args.keyword] = [
-        {
-            'value': args.value,
-            'comment': args.comment,
-        }
-    ]
+        current_keyword = keywords.get(args.keyword, [dict()])
+        if type(current_keyword) is list:
+            current_keyword = current_keyword[0]
+        print(f'[*] {filename}: [{args.root_element}.{args.keyword}] {current_keyword.get("value", "n/a")} -> {args.value}')
+    new_entry = {
+        'value': args.value,
+        'comment': args.comment,
+    }
+    if args.root_element == 'XISFProperties':
+        if args.id:
+            new_entry['id'] = args.id
+        if args.type:
+            new_entry['type'] = args.type
+        keywords[args.keyword] = new_entry
+    else:
+        keywords[args.keyword] = [
+            new_entry
+        ]
 
     XISF.write(filename, file.read_image(0), None, ims_meta[0], file.get_file_metadata(), codec=args.compression_type, shuffle=args.shuffle, level=args.compression_level)
 
